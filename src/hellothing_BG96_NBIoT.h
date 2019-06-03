@@ -32,18 +32,33 @@
 #include <SoftwareSerial.h>
 // the #include statment and code go here...
 
-#define RESPONSE_BUFFER_SIZE 50
+#define RESPONSE_BUFFER_SIZE 100 //response buffer to small for data packet with modem echo.
 #define RETURN_BUFFER_SIZE 20
+#define INPUT_BUFFER_SIZE 50
 
-#define MDM_ENABLE_PIN 9
-#define TEMPERATURE_PIN A0
-#define MDM_RX_PIN 12
-#define MDM_TX_PIN 13
+#define DEFAULT_TIMEOUT 350
+
+#define TEMP A0
+#define MDM_CURR A1
+#define MDM_TX 13
+#define MDM_RX 12
+#define LED1 11
+#define LED0 10
+#define MDM_PWR_EN 9
+#define nMDM_1V8_OK 8
+#define ACCEL_INT 3
+#define BUTTON 2
+
+typedef enum
+{
+  EDGE = 0,
+  NB_IOT = 1
+} access_technology;
 
 class NBIoT
 {
 public:
-  NBIoT();
+  NBIoT(access_technology tech);
 
   /**************************************************************
    * Power management functions
@@ -51,19 +66,16 @@ public:
 
   /*
     Function to power up the modem
-
   */
   void modemPowerUp();
 
   /*
     Function to power down the modem
-
   */
   void modemPowerDown();
 
   /*
     Function to reset the modem
-
   */
   void modemReset();
 
@@ -75,7 +87,6 @@ public:
     Function to get the SIM CCID
 
     return : SIM CCID string
-
   */
   char *getCCID();
 
@@ -83,7 +94,6 @@ public:
     Function to get the SIM IMSI
 
     return : SIM IMSI string
-
   */
   char *getIMSI();
 
@@ -95,31 +105,13 @@ public:
     Function to initiate the modem
 
     return : success status
-
   */
   bool modemInit();
-
-  /*
-    Function to initiate the modem with persistant settings
-
-    return : success status
-
-  */
-  bool modemInitPersistent();
-
-  /*
-    Function to check that the baud rate is correct
-
-    return : success status
-
-  */
-  bool checkBaud();
 
   /*
     Function to get the modem IMEI
 
     return : modem IMEI string
-
   */
   char *getIMEI();
 
@@ -128,18 +120,16 @@ public:
    * ************************************************************/
 
   /*
-    Function to set the NB-IoT details
+    Function to set the Extended Configuration Settings
 
     return : success status
-
   */
-  bool setNBIoTDetails();
+  bool setExtConfig();
 
   /*
     Function to get the signal quality
 
     return : signal quality string
-
   */
   char *getSignalQuality();
 
@@ -147,19 +137,45 @@ public:
     Function to get the current service mode
 
     return : success status
-
   */
   char *getServiceMode();
 
+  /*
+    Function to set the network registration
+
+    return : success status
+  */
+  bool setNetworkReg();
+
+  /*
+    Function to get the network registration status
+
+    return : success status
+  */
+  int getNetworkReg();
+
+  /*
+    Function to set the network attatch
+
+    return : success status
+  */
+  bool setNetworkAttach();
+
+  /*
+    Function to get the network attatch status
+
+    return : success status
+  */
+  bool getNetworkAttach();
+
   /**************************************************************
-   * Power management functions
+   * TCP/IP functions
    * ************************************************************/
 
   /*
     Function to set the APN
 
     return : success status
-
   */
   bool setTCPAPN();
 
@@ -167,7 +183,6 @@ public:
     Function to deactivate the TCP/IP context
 
     return : success status
-
   */
   bool deactTCPContext();
 
@@ -175,7 +190,6 @@ public:
     Function to activate the TCP/IP context
 
     return : success status
-
   */
   bool actTCPContext();
 
@@ -183,7 +197,6 @@ public:
     Function to close the TCP/IP connection
 
     return : success status
-
   */
   bool closeTCPConnection();
 
@@ -191,9 +204,20 @@ public:
     Function to open the TCP/IP connection
 
     return : success status
-
+    ---
+    param #1 : domain name
+    param #2 : port number
   */
   bool openTCPConnection();
+
+  /*
+    Function to sync device data packet to digital representation
+
+    return : success status
+    ---
+    param #1 : imei string
+  */
+  bool initDataPacket(const char *id);
 
   /*
     Function to send a data string via TCP/IP
@@ -205,16 +229,20 @@ public:
   bool sendTCPData(char *data);
 
 private:
-  SoftwareSerial *BG96_serial;
+  SoftwareSerial *MDM_serial;
   bool _response;
   uint32_t _timeout;
   char _response_buffer[RESPONSE_BUFFER_SIZE + 1];
   char _return_buffer[RETURN_BUFFER_SIZE + 1];
-  char *_pt = _return_buffer;
-  char _error[] = "error";
+  char _input_buffer[INPUT_BUFFER_SIZE + 1];
+  char *_pt;
+  char *_error;
+  access_technology _access_tech;
 
   bool sendATCommOK(const char *command);
-  bool readATCommResp(const char *req_response);
+  bool readATCommResp(const char *command, const char *req_response);
+  bool sendConfirmation(const char *req_response);
+  void flushBuffer();
 };
 
 #endif
