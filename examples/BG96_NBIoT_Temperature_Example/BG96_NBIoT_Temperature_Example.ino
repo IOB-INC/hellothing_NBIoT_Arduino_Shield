@@ -18,8 +18,8 @@ void getCommDetails(void);
 
 NBIoT *BG96_NBIoT = new NBIoT(NB_IOT); // EDGE or NB_IOT
 
-char *imei = NULL;
-char *comms = NULL;
+char imei[22];
+char *comms;
 
 char input[INPUT_SIZE + 1]; // Get next command from Serial (add 1 for final 0)
 float tempValue;
@@ -43,7 +43,7 @@ void setup()
 
     BG96_NBIoT->setExtConfig();
     delay(3000);
-    imei = BG96_NBIoT->getIMEI();
+    strcpy(imei, BG96_NBIoT->getIMEI());
     BG96_NBIoT->getServiceMode();
 }
 
