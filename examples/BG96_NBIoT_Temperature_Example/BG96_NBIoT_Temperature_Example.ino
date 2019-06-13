@@ -9,13 +9,18 @@
 
 #include "hellothing_BG96_NBIoT.h"
 
-#define INPUT_SIZE 100
+#define INPUT_SIZE 150
 #define DEBUG_BAUD_RATE 19200
 #define SLEEP_PERIOD 60000
 
+void getTempReading(void);
+void getCommDetails(void);
+
 NBIoT *BG96_NBIoT = new NBIoT(NB_IOT); // EDGE or NB_IOT
 
-char *imei;
+char *imei = NULL;
+char *comms = NULL;
+
 char input[INPUT_SIZE + 1]; // Get next command from Serial (add 1 for final 0)
 float tempValue;
 
@@ -53,6 +58,7 @@ void loop()
             if (BG96_NBIoT->openTCPConnection())
             {
                 BG96_NBIoT->initDataPacket(imei);
+                getCommDetails();
                 getTempReading();
                 break;
             }
@@ -71,5 +77,20 @@ void getTempReading(void)
     dtostrf(tempValue, 6, 2, result);
 
     sprintf(input, "%s%s%s", "{\"temp\":\"", result, "\"}");
+    BG96_NBIoT->sendTCPData(input);
+}
+
+void getCommDetails(void)
+{
+    sprintf(input, "%s%s%s", "{\"comms\": {\"IMEI\": \"", imei, "\",\"ICCID\": \"");
+    comms = BG96_NBIoT->getCCID();
+    sprintf(input, "%s%s%s", input, comms, "\",\"IMSI\": \"");
+    comms = BG96_NBIoT->getIMSI();
+    sprintf(input, "%s%s%s", input, comms, "\",\"SignalStrength\": ");
+    comms = BG96_NBIoT->getSignalQuality();
+    sprintf(input, "%s%s%s", input, comms, ",\"CommsType\": \"");
+    comms = BG96_NBIoT->getServiceMode();
+    sprintf(input, "%s%s%s", input, comms, "\"}}");
+
     BG96_NBIoT->sendTCPData(input);
 }
