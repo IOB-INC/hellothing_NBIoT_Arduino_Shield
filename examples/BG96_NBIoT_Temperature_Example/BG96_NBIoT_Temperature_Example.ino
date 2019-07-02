@@ -9,20 +9,15 @@
 
 #include "hellothing_BG96_NBIoT.h"
 
-#define INPUT_SIZE 150
+#define INPUT_SIZE 50
 #define DEBUG_BAUD_RATE 19200
 #define SLEEP_PERIOD 60000
 
-void getTempReading(void);
-void getCommDetails(void);
+bool sendTemperatue(void);
 
 NBIoT *BG96_NBIoT = new NBIoT(NB_IOT); // EDGE or NB_IOT
 
-char imei[22];
-char *comms;
-
-char input[INPUT_SIZE + 1]; // Get next command from Serial (add 1 for final 0)
-float tempValue;
+char input[INPUT_SIZE + 1];
 
 uint8_t i;
 
@@ -34,17 +29,19 @@ void setup()
     pinMode(MDM_TX, OUTPUT);
 
     Serial.begin(DEBUG_BAUD_RATE);
-    Serial.println("BG96 NB-IoT temperature example!");
+    Serial.println(F("BG96 NB-IoT temperature example!"));
 
     BG96_NBIoT->modemPowerUp();
 
     BG96_NBIoT->modemInit();
-    BG96_NBIoT->setTCPAPN();
-
-    BG96_NBIoT->setExtConfig();
+    BG96_NBIoT->setAPN("nbiot.vodacom.za");
+    BG96_NBIoT->setOperator("65501");
+    BG96_NBIoT->setExtConfig(GSM_ANY);
     delay(3000);
-    strcpy(imei, BG96_NBIoT->getIMEI());
-    BG96_NBIoT->getServiceMode();
+
+    strcpy(BG96_NBIoT->imei, BG96_NBIoT->getIMEI());
+    strcpy(BG96_NBIoT->imsi, BG96_NBIoT->getIMSI());
+    strcpy(BG96_NBIoT->iccid, BG96_NBIoT->getICCID());
 }
 
 void loop()
@@ -55,42 +52,24 @@ void loop()
     {
         for (i = 0; i < 3; i++)
         {
-            if (BG96_NBIoT->openTCPConnection())
+            if (BG96_NBIoT->openConnection("thingcola.hellothing.com", "30001"))
             {
-                BG96_NBIoT->initDataPacket(imei);
-                getCommDetails();
-                getTempReading();
+                BG96_NBIoT->initDataPacket();
+                BG96_NBIoT->sendCommDetails();
+                sendTemperatue();
                 break;
             }
         }
-        BG96_NBIoT->closeTCPConnection();
+        BG96_NBIoT->closeConnection();
     }
     delay(SLEEP_PERIOD);
 }
 
-void getTempReading(void)
+bool sendTemperatue(void)
 {
-    tempValue = analogRead(TEMP);
-    tempValue = ((8.194 - sqrt(81.017156 - (0.02096 * tempValue))) / (-0.0052)) + 30.0;
-
     char result[8];
-    dtostrf(tempValue, 6, 2, result);
+    dtostrf(BG96_NBIoT->getTemp(), 6, 2, result);
 
     sprintf(input, "%s%s%s", "{\"temp\":\"", result, "\"}");
-    BG96_NBIoT->sendTCPData(input);
-}
-
-void getCommDetails(void)
-{
-    sprintf(input, "%s%s%s", "{\"comms\": {\"IMEI\": \"", imei, "\",\"ICCID\": \"");
-    comms = BG96_NBIoT->getCCID();
-    sprintf(input, "%s%s%s", input, comms, "\",\"IMSI\": \"");
-    comms = BG96_NBIoT->getIMSI();
-    sprintf(input, "%s%s%s", input, comms, "\",\"SignalStrength\": ");
-    comms = BG96_NBIoT->getSignalQuality();
-    sprintf(input, "%s%s%s", input, comms, ",\"CommsType\": \"");
-    comms = BG96_NBIoT->getServiceMode();
-    sprintf(input, "%s%s%s", input, comms, "\"}}");
-
-    BG96_NBIoT->sendTCPData(input);
+    return BG96_NBIoT->sendData(input);
 }

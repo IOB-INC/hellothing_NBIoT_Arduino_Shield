@@ -12,32 +12,21 @@
 
 #include "hellothing_BG96_NBIoT.h"
 
-NBIoT::NBIoT(access_technology tech)
+NBIoT::NBIoT(Access_technology_t tech)
 {
     MDM_serial = new SoftwareSerial(MDM_RX, MDM_TX);
     _access_tech = tech;
 }
 
-bool NBIoT::sendATCommOK(const char *command)
+bool NBIoT::sendATCmdResp()
 {
     flushBuffer();
 
-    MDM_serial->write(command);
+    MDM_serial->write(_at_cmd);
 
-    uint32_t start = millis();
+    readModemResp();
 
-    while ((MDM_serial->available() < 4) && (millis() - start < _timeout))
-    {
-        delay(500);
-    }
-
-    byte size = MDM_serial->readBytes(_response_buffer, RESPONSE_BUFFER_SIZE);
-    // Add the final 0 to end the C string
-    _response_buffer[size] = '\0';
-
-    DEBUG_PRINT(_response_buffer);
-
-    if (strstr(_response_buffer, "OK\r\n"))
+    if (strstr(_buff, _at_resp))
     {
         return true;
     }
@@ -47,72 +36,42 @@ bool NBIoT::sendATCommOK(const char *command)
     }
 }
 
-bool NBIoT::readATCommResp(const char *command, const char *exp_response)
+void NBIoT::readModemResp(void)
 {
-    flushBuffer();
-
-    MDM_serial->write(command);
-
     uint32_t start = millis();
 
-    while ((MDM_serial->available() < strlen(exp_response)) && (millis() - start < _timeout))
+    while ((MDM_serial->available() < strlen(_at_resp)) && (millis() - start < _timeout))
     {
         delay(500);
     }
 
-    byte size = MDM_serial->readBytes(_response_buffer, RESPONSE_BUFFER_SIZE);
+    byte size = MDM_serial->readBytes(_buff, RESPONSE_BUFFER_SIZE);
     // Add the final 0 to end the C string
-    _response_buffer[size] = '\0';
+    _buff[size] = '\0';
 
-    DEBUG_PRINT(_response_buffer);
-
-    if (strstr(_response_buffer, exp_response))
-    {
-        return true;
-    }
-    else
-    {
-        return false;
-    }
-}
-
-bool NBIoT::sendConfirmation(const char *exp_response)
-{
-    MDM_serial->write(0x1A);
-
-    uint32_t start = millis();
-
-    while ((MDM_serial->available() < strlen(exp_response)) && (millis() - start < _timeout))
-    {
-        delay(500);
-    }
-
-    byte size = MDM_serial->readBytes(_response_buffer, RESPONSE_BUFFER_SIZE);
-    // Add the final 0 to end the C string
-    _response_buffer[size] = '\0';
-
-    DEBUG_PRINT(_response_buffer);
-
-    if (strstr(_response_buffer, exp_response))
-    {
-        return true;
-    }
-    else
-    {
-        return false;
-    }
+    DEBUG_PRINT(_buff);
 }
 
 void NBIoT::flushBuffer(void)
 {
     if (MDM_serial->available())
     {
-        byte size = MDM_serial->readBytes(_response_buffer, RESPONSE_BUFFER_SIZE);
+        byte size = MDM_serial->readBytes(_buff, RESPONSE_BUFFER_SIZE);
         // Add the final 0 to end the C string
-        _response_buffer[size] = '\0';
+        _buff[size] = '\0';
 
-        DEBUG_PRINT(_response_buffer);
+        DEBUG_PRINT(_buff);
     }
+}
+
+void NBIoT::setAtCmd(const char *memstring)
+{
+    strcpy_P(_at_cmd, (char *)CF(memstring));
+}
+
+void NBIoT::setAtResp(const char *memstring)
+{
+    strcpy_P(_at_resp, (char *)CF(memstring));
 }
 
 /**************************************************************
@@ -121,23 +80,25 @@ void NBIoT::flushBuffer(void)
 
 void NBIoT::modemPowerUp(void)
 {
-    DEBUG_PRINT("Modem powering up");
+    DEBUG_PRINT(F("Modem powering up"));
     digitalWrite(MDM_PWR_EN, HIGH);
     delay(10000);
 }
 
 void NBIoT::modemPowerDown(void)
 {
-    DEBUG_PRINT("Modem powering down");
+    DEBUG_PRINT(F("Modem powering down"));
     _timeout = DEFAULT_TIMEOUT;
-    MDM_serial->write("AT+QPOWD\r\n");
+    setAtCmd(QPOWD);
+    setAtResp(OK);
+    MDM_serial->write(_at_cmd);
     delay(500);
     digitalWrite(MDM_PWR_EN, LOW);
 }
 
 void NBIoT::modemReset(void)
 {
-    DEBUG_PRINT("Modem resetting");
+    DEBUG_PRINT(F("Modem resetting"));
     modemPowerDown();
     delay(1000);
     modemPowerUp();
@@ -147,14 +108,16 @@ void NBIoT::modemReset(void)
  * SIM functions
  * ************************************************************/
 
-char *NBIoT::getCCID(void)
+char *NBIoT::getICCID(void)
 {
-    DEBUG_PRINT("SIM CCID");
+    DEBUG_PRINT(F("SIM ICCID"));
     _timeout = DEFAULT_TIMEOUT;
-    _response = sendATCommOK("AT+QCCID\r\n");
-    if (sscanf(_response_buffer, "\r\n+QCCID: %s\r\nOK\r\n", _return_buffer))
+    setAtCmd(GET_CCID);
+    setAtResp(OK);
+    _response = sendATCmdResp();
+    if (sscanf(_buff, "\r\n+QCCID: %s\r\nOK\r\n", _return_buff))
     {
-        return _return_buffer;
+        return _return_buff;
     }
     else
     {
@@ -164,12 +127,14 @@ char *NBIoT::getCCID(void)
 
 char *NBIoT::getIMSI(void)
 {
-    DEBUG_PRINT("SIM IMSI");
+    DEBUG_PRINT(F("SIM IMSI"));
     _timeout = DEFAULT_TIMEOUT;
-    _response = sendATCommOK("AT+CIMI\r\n");
-    if (sscanf(_response_buffer, "\r\n%s\r\nOK\r\n", _return_buffer))
+    setAtCmd(GET_CIMI);
+    setAtResp(OK);
+    _response = sendATCmdResp();
+    if (sscanf(_buff, "\r\n%s\r\nOK\r\n", _return_buff))
     {
-        return _return_buffer;
+        return _return_buff;
     }
     else
     {
@@ -183,18 +148,19 @@ char *NBIoT::getIMSI(void)
 
 bool NBIoT::modemInit(void)
 {
-    DEBUG_PRINT("Baud setup");
+    DEBUG_PRINT(F("Baud setup"));
     _timeout = DEFAULT_TIMEOUT;
 
-    sprintf(_error, "%s", "ERROR");
+    strcpy(_error, "ERROR");
 
     uint8_t rep = 0;
 
-    do
+    while (rep < 3)
     {
         MDM_serial->begin(115200);
         delay(500);
-        MDM_serial->write("AT+IPR=19200\r\n");
+        setAtCmd(SET_IPR);
+        MDM_serial->write(_at_cmd);
         delay(500);
         MDM_serial->end();
 
@@ -202,11 +168,16 @@ bool NBIoT::modemInit(void)
 
         MDM_serial->begin(19200);
         delay(500);
-        if (readATCommResp("AT+IPR?\r\n", "+IPR: 19200\r\n"))
+        setAtCmd(GET_IPR);
+        setAtResp(RESP_IPR);
+        if (sendATCmdResp())
         {
-            if (sendATCommOK("ATE0\r\n"))
+            setAtCmd(SET_ECHO_OFF);
+            setAtResp(OK);
+            if (sendATCmdResp())
             {
-                sendATCommOK("AT+CMEE=2\r\n");
+                setAtCmd(SET_CMEE);
+                sendATCmdResp();
                 return true;
             }
             break;
@@ -217,21 +188,39 @@ bool NBIoT::modemInit(void)
             rep += 1;
         }
         delay(2000);
-        DEBUG_PRINT("Retry baud setup");
-
-    } while (rep < 3);
+        DEBUG_PRINT(F("Retry baud setup"));
+    }
 
     return false;
 }
 
+bool NBIoT::sendCommDetails(void)
+{
+    strcpy(_input_buff, "{\"comms\": {\"IMEI\": \"");
+    strcat(_input_buff, imei);
+    strcat(_input_buff, "\",\"ICCID\": \"");
+    strcat(_input_buff, iccid);
+    strcat(_input_buff, "\",\"IMSI\": \"");
+    strcat(_input_buff, imsi);
+    strcat(_input_buff, "\",\"SignalStrength\": ");
+    strcat(_input_buff, getSignalQuality());
+    strcat(_input_buff, ",\"CommsType\": \"");
+    strcat(_input_buff, getServiceMode());
+    strcat(_input_buff, "\"}}");
+
+    return sendData(_input_buff);
+}
+
 char *NBIoT::getIMEI(void)
 {
-    DEBUG_PRINT("Modem IMEI");
+    DEBUG_PRINT(F("Modem IMEI"));
     _timeout = DEFAULT_TIMEOUT;
-    _response = sendATCommOK("AT+GSN\r\n");
-    if (sscanf(_response_buffer, "\r\n%s\r\nOK\r\n", _return_buffer))
+    setAtCmd(GET_GSN);
+    setAtResp(OK);
+    _response = sendATCmdResp();
+    if (sscanf(_buff, "\r\n%s\r\nOK\r\n", _return_buff))
     {
-        return _return_buffer;
+        return _return_buff;
     }
     else
     {
@@ -243,34 +232,50 @@ char *NBIoT::getIMEI(void)
  * Network functions
  * ************************************************************/
 
-bool NBIoT::setExtConfig(void)
+bool NBIoT::setExtConfig(const char *band)
 {
-    DEBUG_PRINT("Extended Configuration Settings");
+    DEBUG_PRINT(F("Extended Configuration Settings"));
     _timeout = DEFAULT_TIMEOUT;
-    _response = sendATCommOK("AT+QCFG=\"nb1/bandprior\",08\r\n");
-    _response = sendATCommOK("AT+QCFG=\"band\",F,0,A0E189F\r\n");
-    _response = sendATCommOK("AT+QCFG=\"nwscanseq\",0301,1\r\n");
+    setAtResp(OK);
+
     if (_access_tech == EDGE)
     {
-        _response = sendATCommOK("AT+QCFG=\"nwscanmode\",1,1\r\n");
+        setAtCmd(SET_QCFG_BAND_EDGE);
+        sprintf(_input_buff, _at_cmd, band);
+        strcpy(_at_cmd, _input_buff);
+        _response = sendATCmdResp();
+        setAtCmd(SET_QCFG_NWSCANMODE_EDGE);
+        _response = sendATCmdResp();
     }
     else
     {
-        _response = sendATCommOK("AT+QCFG=\"nwscanmode\",3,1\r\n");
+        setAtCmd(SET_QCFG_BAND_NB);
+        sprintf(_input_buff, _at_cmd, band);
+        strcpy(_at_cmd, _input_buff);
+        _response = sendATCmdResp();
+        setAtCmd(SET_QCFG_BANDPRIOR);
+        _response = sendATCmdResp();
+        setAtCmd(SET_QCFG_NWSCANMODE_NB);
+        _response = sendATCmdResp();
+        setAtCmd(SET_QCFG_IOTOPMODE);
+        _response = sendATCmdResp();
     }
-    _response = sendATCommOK("AT+QCFG=\"iotopmode\",1,1\r\n");
+
+    setAtCmd(SET_QCFG_NWSCANSEQ);
+    _response = sendATCmdResp();
 
     return _response;
 }
 
 char *NBIoT::getSignalQuality(void)
 {
-    DEBUG_PRINT("Modem signal quality");
+    DEBUG_PRINT(F("Modem signal quality"));
     _timeout = DEFAULT_TIMEOUT;
-    _response = sendATCommOK("AT+QCSQ\r\n");
-    if (_response)
+    setAtCmd(GET_QCSQ);
+    setAtResp(OK);
+    if (sendATCmdResp())
     {
-        _pt = strtok(_response_buffer, ",");
+        _pt = strtok(_buff, ",");
         _pt = strtok(NULL, "\r\n");
         return _pt;
     }
@@ -282,12 +287,13 @@ char *NBIoT::getSignalQuality(void)
 
 char *NBIoT::getServiceMode(void)
 {
-    DEBUG_PRINT("Current network");
+    DEBUG_PRINT(F("Current network"));
     _timeout = DEFAULT_TIMEOUT;
-    _response = sendATCommOK("AT+QCSQ\r\n");
-    if (_response)
+    setAtCmd(GET_QNWINFO);
+    setAtResp(OK);
+    if (sendATCmdResp())
     {
-        _pt = strtok(_response_buffer, "\"");
+        _pt = strtok(_buff, "\"");
         _pt = strtok(NULL, "\"");
         return _pt;
     }
@@ -299,93 +305,138 @@ char *NBIoT::getServiceMode(void)
 
 bool NBIoT::setNetworkReg(void)
 {
-    DEBUG_PRINT("Network registration");
+    DEBUG_PRINT(F("Network registration"));
     _timeout = DEFAULT_TIMEOUT;
-    sendATCommOK("AT+CEREG=1\r\n");
+    setAtCmd(SET_CEREG);
+    setAtResp(OK);
+    sendATCmdResp();
 }
 
 int NBIoT::getNetworkReg(void)
 {
-    DEBUG_PRINT("Network registration");
+    DEBUG_PRINT(F("Network registration"));
     _timeout = DEFAULT_TIMEOUT;
-    sendATCommOK("AT+CEREG?\r\n");
+    setAtCmd(GET_CEREG);
+    setAtResp(OK);
+    sendATCmdResp();
 }
 
 bool NBIoT::setNetworkAttach(void)
 {
-    DEBUG_PRINT("Network attach");
+    DEBUG_PRINT(F("Network attach"));
     _timeout = 140000;
-    return sendATCommOK("AT+CGATT=1\r\n");
+    setAtCmd(SET_CGATT);
+    setAtResp(OK);
+    return sendATCmdResp();
 }
 
 bool NBIoT::getNetworkAttach(void)
 {
-    DEBUG_PRINT("Network attach status");
+    DEBUG_PRINT(F("Network attach status"));
     _timeout = 140000;
-    return readATCommResp("AT+CGATT?\r\n", "+CGATT: 1");
+    setAtCmd(GET_CGATT);
+    setAtResp(RESP_CGATT);
+    return sendATCmdResp();
+}
+
+bool NBIoT::setOperator(const char *oper)
+{
+    DEBUG_PRINT(F("Operator selection"));
+    _timeout = 180000;
+    setAtCmd(SET_COPS);
+    setAtResp(OK);
+    sprintf(_input_buff, _at_cmd, oper);
+    strcpy(_at_cmd, _input_buff);
+    return sendATCmdResp();
 }
 
 /**************************************************************
  * TCP/IP functions
  * ************************************************************/
 
-bool NBIoT::setTCPAPN(void)
+bool NBIoT::setAPN(const char *apn)
 {
-    DEBUG_PRINT("Modem APN");
+    DEBUG_PRINT(F("Modem APN"));
     _timeout = 10000;
-    if (_access_tech == EDGE)
-    {
-        return sendATCommOK("AT+QICSGP=1,1,\"internet\",\"\",\"\",0\r\n");
-    }
-    return sendATCommOK("AT+QICSGP=1,1,\"nbiot.vodacom.za\",\"\",\"\",0\r\n");
+    setAtCmd(SET_QICSGP);
+    setAtResp(OK);
+    sprintf(_input_buff, _at_cmd, apn);
+    strcpy(_at_cmd, _input_buff);
+    return sendATCmdResp();
 }
 
-bool NBIoT::deactTCPContext(void)
+bool NBIoT::setDNS(const char *dns)
 {
-    DEBUG_PRINT("Deactivating PDP context");
+    DEBUG_PRINT(F("DNS Server"));
+    _timeout = 10000;
+    setAtCmd(SET_QIDNSCFG);
+    setAtResp(OK);
+    sprintf(_input_buff, _at_cmd, dns);
+    strcpy(_at_cmd, _input_buff);
+    return sendATCmdResp();
+}
+
+bool NBIoT::deactContext(void)
+{
+    DEBUG_PRINT(F("Deactivating PDP context"));
     _timeout = 40000;
-    return sendATCommOK("AT+QIDEACT=1\r\n");
+    setAtCmd(SET_QIDEACT);
+    setAtResp(OK);
+    return sendATCmdResp();
 }
 
-bool NBIoT::actTCPContext(void)
+bool NBIoT::actContext(void)
 {
-    DEBUG_PRINT("Activating PDP context");
+    DEBUG_PRINT(F("Activating PDP context"));
     _timeout = 150000;
-    sendATCommOK("AT+QIACT=1\r\n");
-    return readATCommResp("AT+QIACT?\r\n", "+QIACT: 1,1,1,");
+
+    setAtCmd(SET_QIACT);
+    setAtResp(OK);
+    sendATCmdResp();
+
+    setAtCmd(GET_QIACT);
+    setAtResp(RESP_QIACT);
+    return sendATCmdResp();
 }
 
-bool NBIoT::closeTCPConnection(void)
+bool NBIoT::closeConnection(void)
 {
-    DEBUG_PRINT("CLOSE TCP");
+    DEBUG_PRINT(F("Close TCP"));
     _timeout = 10000;
-    _response = sendATCommOK("AT+QICLOSE=1\r\n");
+    setAtCmd(SET_QICLOSE);
+    setAtResp(OK);
+    _response = sendATCmdResp();
 
     if (_access_tech == EDGE)
     {
-        return deactTCPContext();
+        return deactContext();
     }
     return _response;
 }
 
-bool NBIoT::openTCPConnection(void)
+bool NBIoT::openConnection(const char *domain, const char *port)
 {
     uint8_t i;
 
     if (_access_tech == EDGE)
     {
-        actTCPContext();
+        actContext();
     }
 
-    DEBUG_PRINT("OPEN TCP");
     _timeout = DEFAULT_TIMEOUT;
-    _response = sendATCommOK("AT+QIDNSCFG=1,\"8.8.8.8\"\r\n");
+    setDNS("8.8.8.8");
     delay(1000);
+
+    DEBUG_PRINT(F("Open TCP"));
     _timeout = 150000;
+    setAtCmd(SET_QIOPEN);
+    setAtResp(RESP_QIOPEN);
+    sprintf(_input_buff, _at_cmd, domain, port);
+    strcpy(_at_cmd, _input_buff);
 
     for (i = 0; i < 3; i++)
     {
-        if (readATCommResp("AT+QIOPEN=1,1,\"TCP\",\"thingcola.hellothing.com\",30001,0,1\r\n", "OK\r\n\r\n+QIOPEN: 1,0\r\n"))
+        if (sendATCmdResp())
         {
             return true;
         }
@@ -393,30 +444,69 @@ bool NBIoT::openTCPConnection(void)
     return false;
 }
 
-bool NBIoT::initDataPacket(const char *id)
+bool NBIoT::initDataPacket(void)
 {
-    DEBUG_PRINT("Short ID");
+    DEBUG_PRINT(F("Short ID"));
     _timeout = 5000;
 
-    sprintf(_input_buffer, "%s%s%s", "{\"id\":\"", id, "\"}");
-    if (readATCommResp("AT+QISEND=1\r\n", ">"))
+    setAtCmd(SET_QISEND);
+    setAtResp(RESP_QISEND);
+    if (sendATCmdResp())
     {
         _timeout = 10000;
-        MDM_serial->write(_input_buffer);
-        return sendConfirmation("SEND OK\r\n\r\n+QIURC: \"recv\",1,");
+        sprintf(_input_buff, "%s%s%s", "{\"id\":\"", imei, "\"}");
+        MDM_serial->write(_input_buff);
+        MDM_serial->write(0x1A);
+
+        setAtResp(RESP_QISEND_ID);
+        readModemResp();
+
+        if (strstr(_buff, _at_resp))
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
     }
 }
 
-bool NBIoT::sendTCPData(char *data)
+bool NBIoT::sendData(char *data)
 {
-    DEBUG_PRINT("Send data");
+    DEBUG_PRINT(F("Send data"));
     _timeout = 5000;
-    if (readATCommResp("AT+QISEND=1\r\n", ">"))
+    setAtCmd(SET_QISEND);
+    setAtResp(RESP_QISEND);
+    if (sendATCmdResp())
     {
         _timeout = 10000;
         MDM_serial->write(data);
-        return sendConfirmation("SEND OK\r\n\r\n+QIURC: \"recv\",1,4\r\nOK");
+        MDM_serial->write(0x1A);
+
+        setAtResp(RESP_QISEND_DATA);
+        readModemResp();
+
+        if (strstr(_buff, _at_resp))
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
     }
 
     return false;
+}
+
+/**************************************************************
+ * Sensor functions
+ * ************************************************************/
+
+float NBIoT::getTemp(void)
+{
+    tempValue = analogRead(TEMP);
+    tempValue = ((8.194 - sqrt(81.017156 - (0.02096 * tempValue))) / (-0.0052)) + 30.0;
+    return tempValue;
 }

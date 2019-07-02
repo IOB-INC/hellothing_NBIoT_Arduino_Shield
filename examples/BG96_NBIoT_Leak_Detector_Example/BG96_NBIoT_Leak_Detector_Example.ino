@@ -19,7 +19,6 @@ int M1A = 6;
 int M1B = 7;
 
 char input[INPUT_SIZE + 1];
-char *imei;
 
 uint8_t i;
 
@@ -50,11 +49,14 @@ void setup()
     BG96_NBIoT->modemPowerUp();
 
     BG96_NBIoT->modemInit();
-    BG96_NBIoT->setTCPAPN();
-
-    BG96_NBIoT->setExtConfig();
+    BG96_NBIoT->setAPN("nbiot.vodacom.za");
+    BG96_NBIoT->setOperator("65501");
+    BG96_NBIoT->setExtConfig(GSM_ANY);
     delay(3000);
-    imei = BG96_NBIoT->getIMEI();
+
+    strcpy(BG96_NBIoT->imei, BG96_NBIoT->getIMEI());
+    strcpy(BG96_NBIoT->imsi, BG96_NBIoT->getIMSI());
+    strcpy(BG96_NBIoT->iccid, BG96_NBIoT->getICCID());
     BG96_NBIoT->getSignalQuality();
 }
 
@@ -96,15 +98,15 @@ void sendLeakState(uint8_t state)
     {
         for (i = 0; i < 3; i++)
         {
-            if (BG96_NBIoT->openTCPConnection())
+            if (BG96_NBIoT->openConnection("thingcola.hellothing.com", "30001"))
             {
-                BG96_NBIoT->initDataPacket(imei);
+                BG96_NBIoT->initDataPacket();
                 sprintf(input, "%s%d%s", "{\"leak\":\"", state, "\"}");
-                BG96_NBIoT->sendTCPData(input);
+                BG96_NBIoT->sendData(input);
                 break;
             }
         }
-        BG96_NBIoT->closeTCPConnection();
+        BG96_NBIoT->closeConnection();
     }
 }
 
