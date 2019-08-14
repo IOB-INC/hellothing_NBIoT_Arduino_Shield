@@ -27,6 +27,11 @@ void setup()
     pinMode(MDM_PWR_EN, OUTPUT);
     pinMode(MDM_RX, INPUT);
     pinMode(MDM_TX, OUTPUT);
+    pinMode(LED0, OUTPUT);
+    pinMode(LED1, OUTPUT);
+
+    digitalWrite(LED0, HIGH);
+    digitalWrite(LED1, HIGH);
 
     Serial.begin(DEBUG_BAUD_RATE);
     Serial.println(F("BG96 NB-IoT temperature example!"));
@@ -34,9 +39,10 @@ void setup()
     BG96_NBIoT->modemPowerUp();
 
     BG96_NBIoT->modemInit();
+
     BG96_NBIoT->setAPN("nbiot.vodacom.za");
     BG96_NBIoT->setOperator("65501");
-    BG96_NBIoT->setExtConfig(GSM_ANY);
+    BG96_NBIoT->setExtConfig(LTE_B8);
     delay(3000);
 
     strcpy(BG96_NBIoT->imei, BG96_NBIoT->getIMEI());
@@ -48,14 +54,20 @@ void loop()
 {
     BG96_NBIoT->getNetworkReg();
     BG96_NBIoT->getSignalQuality();
+    BG96_NBIoT->getServiceMode();
     if (BG96_NBIoT->getNetworkAttach())
     {
         for (i = 0; i < 3; i++)
         {
             if (BG96_NBIoT->openConnection("thingcola.hellothing.com", "30001"))
             {
-                BG96_NBIoT->initDataPacket();
-                BG96_NBIoT->sendCommDetails();
+                BG96_NBIoT->JsonDoc["id"] = BG96_NBIoT->imei;
+                serializeJson(BG96_NBIoT->JsonDoc, input);
+                BG96_NBIoT->JsonDoc.clear();
+                BG96_NBIoT->sendData(input);
+
+                BG96_NBIoT->sendDeviceID();
+                BG96_NBIoT->sendSignalDetails();
                 sendTemperatue();
                 break;
             }
@@ -70,6 +82,9 @@ bool sendTemperatue(void)
     char result[8];
     dtostrf(BG96_NBIoT->getTemp(), 6, 2, result);
 
-    sprintf(input, "%s%s%s", "{\"temp\":\"", result, "\"}");
+    BG96_NBIoT->JsonDoc["temp"] = result;
+    serializeJson(BG96_NBIoT->JsonDoc, input);
+    BG96_NBIoT->JsonDoc.clear();
+
     return BG96_NBIoT->sendData(input);
 }

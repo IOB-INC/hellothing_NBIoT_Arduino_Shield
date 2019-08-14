@@ -18,25 +18,24 @@ NBIoT::NBIoT(Access_technology_t tech)
     _access_tech = tech;
 }
 
+NBIoT::NBIoT(Access_technology_t tech, attr *attributes, uint8_t attributes_size)
+{
+    MDM_serial = new SoftwareSerial(MDM_RX, MDM_TX);
+    _attributes = attributes;
+    _attributes_size = attributes_size;
+    _access_tech = tech;
+}
+
 bool NBIoT::sendATCmdResp()
 {
     flushBuffer();
 
     MDM_serial->write(_at_cmd);
 
-    readModemResp();
-
-    if (strstr(_buff, _at_resp))
-    {
-        return true;
-    }
-    else
-    {
-        return false;
-    }
+    return readModemResp();
 }
 
-void NBIoT::readModemResp(void)
+bool NBIoT::readModemResp(void)
 {
     uint32_t start = millis();
 
@@ -46,10 +45,49 @@ void NBIoT::readModemResp(void)
     }
 
     byte size = MDM_serial->readBytes(_buff, RESPONSE_BUFFER_SIZE);
-    // Add the final 0 to end the C string
     _buff[size] = '\0';
 
-    DEBUG_PRINT(_buff);
+    DEBUG_SERIAL(_buff);
+
+    _pt = strstr(_buff, "{");
+    if (_pt)
+    {
+        if (!deserializeJson(JsonDoc, _pt))
+        {
+            _json_key = JsonDoc["k"];
+            for (int i = 0; i < _attributes_size; i++)
+            {
+                if (!strcmp(_attributes[i].key, _json_key))
+                {
+                    _attributes[i].value = JsonDoc["v"];
+
+                    if (_attributes[i].type == DIGITAL)
+                    {
+                        digitalWrite(_attributes[i].pin, _attributes[i].value);
+                    }
+                    else if (_attributes[i].type == DIGITAL_INVERT)
+                    {
+                        digitalWrite(_attributes[i].pin, !_attributes[i].value);
+                    }
+
+                    JsonDoc.clear();
+                    JsonObject outputs = JsonDoc.createNestedObject("outputs");
+                    outputs[_attributes[i].key] = _attributes[i].value;
+
+                    serializeJson(JsonDoc, _input_buff);
+                    JsonDoc.clear();
+
+                    return sendData(_input_buff);
+                }
+            }
+        }
+        return false;
+    }
+    else if (strstr(_buff, _at_resp))
+    {
+        return true;
+    }
+    return false;
 }
 
 void NBIoT::flushBuffer(void)
@@ -60,7 +98,7 @@ void NBIoT::flushBuffer(void)
         // Add the final 0 to end the C string
         _buff[size] = '\0';
 
-        DEBUG_PRINT(_buff);
+        DEBUG_SERIAL(_buff);
     }
 }
 
@@ -80,14 +118,19 @@ void NBIoT::setAtResp(const char *memstring)
 
 void NBIoT::modemPowerUp(void)
 {
-    DEBUG_PRINT(F("Modem powering up"));
+    DEBUG_SERIAL(F("Modem powering up"));
     digitalWrite(MDM_PWR_EN, HIGH);
-    delay(10000);
+    for (int i = 0; i < 10; i++)
+    {
+        Serial.print(". ");
+        delay(1000);
+    }
+    Serial.println();
 }
 
 void NBIoT::modemPowerDown(void)
 {
-    DEBUG_PRINT(F("Modem powering down"));
+    DEBUG_SERIAL(F("Modem powering down"));
     _timeout = DEFAULT_TIMEOUT;
     setAtCmd(QPOWD);
     setAtResp(OK);
@@ -98,7 +141,7 @@ void NBIoT::modemPowerDown(void)
 
 void NBIoT::modemReset(void)
 {
-    DEBUG_PRINT(F("Modem resetting"));
+    DEBUG_SERIAL(F("Modem resetting"));
     modemPowerDown();
     delay(1000);
     modemPowerUp();
@@ -110,7 +153,7 @@ void NBIoT::modemReset(void)
 
 char *NBIoT::getICCID(void)
 {
-    DEBUG_PRINT(F("SIM ICCID"));
+    DEBUG_SERIAL(F("SIM ICCID"));
     _timeout = DEFAULT_TIMEOUT;
     setAtCmd(GET_CCID);
     setAtResp(OK);
@@ -127,7 +170,7 @@ char *NBIoT::getICCID(void)
 
 char *NBIoT::getIMSI(void)
 {
-    DEBUG_PRINT(F("SIM IMSI"));
+    DEBUG_SERIAL(F("SIM IMSI"));
     _timeout = DEFAULT_TIMEOUT;
     setAtCmd(GET_CIMI);
     setAtResp(OK);
@@ -148,7 +191,7 @@ char *NBIoT::getIMSI(void)
 
 bool NBIoT::modemInit(void)
 {
-    DEBUG_PRINT(F("Baud setup"));
+    DEBUG_SERIAL(F("Baud setup"));
     _timeout = DEFAULT_TIMEOUT;
 
     strcpy(_error, "ERROR");
@@ -178,6 +221,16 @@ bool NBIoT::modemInit(void)
             {
                 setAtCmd(SET_CMEE);
                 sendATCmdResp();
+                if (_access_tech == EDGE)
+                {
+                    setAtCmd(SET_CGREG);
+                }
+                else
+                {
+                    setAtCmd(SET_CEREG);
+                }
+                sendATCmdResp();
+
                 return true;
             }
             break;
@@ -188,32 +241,15 @@ bool NBIoT::modemInit(void)
             rep += 1;
         }
         delay(2000);
-        DEBUG_PRINT(F("Retry baud setup"));
+        DEBUG_SERIAL(F("Retry baud setup"));
     }
 
     return false;
 }
 
-bool NBIoT::sendCommDetails(void)
-{
-    strcpy(_input_buff, "{\"comms\": {\"IMEI\": \"");
-    strcat(_input_buff, imei);
-    strcat(_input_buff, "\",\"ICCID\": \"");
-    strcat(_input_buff, iccid);
-    strcat(_input_buff, "\",\"IMSI\": \"");
-    strcat(_input_buff, imsi);
-    strcat(_input_buff, "\",\"SignalStrength\": ");
-    strcat(_input_buff, getSignalQuality());
-    strcat(_input_buff, ",\"CommsType\": \"");
-    strcat(_input_buff, getServiceMode());
-    strcat(_input_buff, "\"}}");
-
-    return sendData(_input_buff);
-}
-
 char *NBIoT::getIMEI(void)
 {
-    DEBUG_PRINT(F("Modem IMEI"));
+    DEBUG_SERIAL(F("Modem IMEI"));
     _timeout = DEFAULT_TIMEOUT;
     setAtCmd(GET_GSN);
     setAtResp(OK);
@@ -228,13 +264,28 @@ char *NBIoT::getIMEI(void)
     }
 }
 
+bool NBIoT::sendDeviceID(void)
+{
+    DEBUG_SERIAL(F("Send device IDs"));
+
+    JsonObject comms = JsonDoc.createNestedObject("comms");
+    comms["IMEI"] = imei;
+    comms["ICCID"] = iccid;
+    comms["IMSI"] = imsi;
+
+    serializeJson(JsonDoc, _input_buff);
+    JsonDoc.clear();
+
+    return sendData(_input_buff);
+}
+
 /**************************************************************
  * Network functions
  * ************************************************************/
 
 bool NBIoT::setExtConfig(const char *band)
 {
-    DEBUG_PRINT(F("Extended Configuration Settings"));
+    DEBUG_SERIAL(F("Extended Configuration Settings"));
     _timeout = DEFAULT_TIMEOUT;
     setAtResp(OK);
 
@@ -269,7 +320,7 @@ bool NBIoT::setExtConfig(const char *band)
 
 char *NBIoT::getSignalQuality(void)
 {
-    DEBUG_PRINT(F("Modem signal quality"));
+    DEBUG_SERIAL(F("Modem signal quality"));
     _timeout = DEFAULT_TIMEOUT;
     setAtCmd(GET_QCSQ);
     setAtResp(OK);
@@ -287,7 +338,7 @@ char *NBIoT::getSignalQuality(void)
 
 char *NBIoT::getServiceMode(void)
 {
-    DEBUG_PRINT(F("Current network"));
+    DEBUG_SERIAL(F("Current network"));
     _timeout = DEFAULT_TIMEOUT;
     setAtCmd(GET_QNWINFO);
     setAtResp(OK);
@@ -303,27 +354,39 @@ char *NBIoT::getServiceMode(void)
     }
 }
 
-bool NBIoT::setNetworkReg(void)
+bool NBIoT::sendSignalDetails(void)
 {
-    DEBUG_PRINT(F("Network registration"));
-    _timeout = DEFAULT_TIMEOUT;
-    setAtCmd(SET_CEREG);
-    setAtResp(OK);
-    sendATCmdResp();
+    DEBUG_SERIAL(F("Send signal details"));
+
+    JsonObject comms = JsonDoc.createNestedObject("comms");
+    comms["SignalStrength"] = getSignalQuality();
+    comms["CommsType"] = getServiceMode();
+
+    serializeJson(JsonDoc, _input_buff);
+    JsonDoc.clear();
+
+    return sendData(_input_buff);
 }
 
-int NBIoT::getNetworkReg(void)
+bool NBIoT::getNetworkReg(void)
 {
-    DEBUG_PRINT(F("Network registration"));
+    DEBUG_SERIAL(F("Network registration"));
     _timeout = DEFAULT_TIMEOUT;
-    setAtCmd(GET_CEREG);
+    if (_access_tech == EDGE)
+    {
+        setAtCmd(GET_CGREG);
+    }
+    else
+    {
+        setAtCmd(GET_CEREG);
+    }
     setAtResp(OK);
-    sendATCmdResp();
+    return sendATCmdResp();
 }
 
 bool NBIoT::setNetworkAttach(void)
 {
-    DEBUG_PRINT(F("Network attach"));
+    DEBUG_SERIAL(F("Network attach"));
     _timeout = 140000;
     setAtCmd(SET_CGATT);
     setAtResp(OK);
@@ -332,16 +395,34 @@ bool NBIoT::setNetworkAttach(void)
 
 bool NBIoT::getNetworkAttach(void)
 {
-    DEBUG_PRINT(F("Network attach status"));
+    DEBUG_SERIAL(F("Network attach status"));
     _timeout = 140000;
     setAtCmd(GET_CGATT);
     setAtResp(RESP_CGATT);
     return sendATCmdResp();
 }
 
+bool NBIoT::getAvailableOperators(void)
+{
+    DEBUG_SERIAL(F("Available operators"));
+    _timeout = 180000;
+    setAtCmd(GET_COPS_ALL);
+    setAtResp(OK);
+    return sendATCmdResp();
+}
+
+bool NBIoT::getCurrentOperator(void)
+{
+    DEBUG_SERIAL(F("Current operator"));
+    _timeout = 180000;
+    setAtCmd(GET_COPS);
+    setAtResp(OK);
+    return sendATCmdResp();
+}
+
 bool NBIoT::setOperator(const char *oper)
 {
-    DEBUG_PRINT(F("Operator selection"));
+    DEBUG_SERIAL(F("Operator selection"));
     _timeout = 180000;
     setAtCmd(SET_COPS);
     setAtResp(OK);
@@ -356,7 +437,7 @@ bool NBIoT::setOperator(const char *oper)
 
 bool NBIoT::setAPN(const char *apn)
 {
-    DEBUG_PRINT(F("Modem APN"));
+    DEBUG_SERIAL(F("Modem APN"));
     _timeout = 10000;
     setAtCmd(SET_QICSGP);
     setAtResp(OK);
@@ -367,7 +448,7 @@ bool NBIoT::setAPN(const char *apn)
 
 bool NBIoT::setDNS(const char *dns)
 {
-    DEBUG_PRINT(F("DNS Server"));
+    DEBUG_SERIAL(F("DNS Server"));
     _timeout = 10000;
     setAtCmd(SET_QIDNSCFG);
     setAtResp(OK);
@@ -378,7 +459,7 @@ bool NBIoT::setDNS(const char *dns)
 
 bool NBIoT::deactContext(void)
 {
-    DEBUG_PRINT(F("Deactivating PDP context"));
+    DEBUG_SERIAL(F("Deactivating PDP context"));
     _timeout = 40000;
     setAtCmd(SET_QIDEACT);
     setAtResp(OK);
@@ -387,7 +468,7 @@ bool NBIoT::deactContext(void)
 
 bool NBIoT::actContext(void)
 {
-    DEBUG_PRINT(F("Activating PDP context"));
+    DEBUG_SERIAL(F("Activating PDP context"));
     _timeout = 150000;
 
     setAtCmd(SET_QIACT);
@@ -401,7 +482,7 @@ bool NBIoT::actContext(void)
 
 bool NBIoT::closeConnection(void)
 {
-    DEBUG_PRINT(F("Close TCP"));
+    DEBUG_SERIAL(F("Close TCP"));
     _timeout = 10000;
     setAtCmd(SET_QICLOSE);
     setAtResp(OK);
@@ -427,7 +508,7 @@ bool NBIoT::openConnection(const char *domain, const char *port)
     setDNS("8.8.8.8");
     delay(1000);
 
-    DEBUG_PRINT(F("Open TCP"));
+    DEBUG_SERIAL(F("Open TCP"));
     _timeout = 150000;
     setAtCmd(SET_QIOPEN);
     setAtResp(RESP_QIOPEN);
@@ -444,37 +525,9 @@ bool NBIoT::openConnection(const char *domain, const char *port)
     return false;
 }
 
-bool NBIoT::initDataPacket(void)
-{
-    DEBUG_PRINT(F("Short ID"));
-    _timeout = 5000;
-
-    setAtCmd(SET_QISEND);
-    setAtResp(RESP_QISEND);
-    if (sendATCmdResp())
-    {
-        _timeout = 10000;
-        sprintf(_input_buff, "%s%s%s", "{\"id\":\"", imei, "\"}");
-        MDM_serial->write(_input_buff);
-        MDM_serial->write(0x1A);
-
-        setAtResp(RESP_QISEND_ID);
-        readModemResp();
-
-        if (strstr(_buff, _at_resp))
-        {
-            return true;
-        }
-        else
-        {
-            return false;
-        }
-    }
-}
-
 bool NBIoT::sendData(char *data)
 {
-    DEBUG_PRINT(F("Send data"));
+    DEBUG_SERIAL(F("Send data"));
     _timeout = 5000;
     setAtCmd(SET_QISEND);
     setAtResp(RESP_QISEND);
@@ -485,16 +538,7 @@ bool NBIoT::sendData(char *data)
         MDM_serial->write(0x1A);
 
         setAtResp(RESP_QISEND_DATA);
-        readModemResp();
-
-        if (strstr(_buff, _at_resp))
-        {
-            return true;
-        }
-        else
-        {
-            return false;
-        }
+        return readModemResp();
     }
 
     return false;
@@ -509,4 +553,24 @@ float NBIoT::getTemp(void)
     tempValue = analogRead(TEMP);
     tempValue = ((8.194 - sqrt(81.017156 - (0.02096 * tempValue))) / (-0.0052)) + 30.0;
     return tempValue;
+}
+
+bool NBIoT::registerOutputs(void)
+{
+    DEBUG_SERIAL(F("Register outputs"));
+
+    char type[2];
+
+    JsonObject reg_out = JsonDoc.createNestedObject("reg_out");
+
+    for (int i = 0; i < _attributes_size; i++)
+    {
+        dtostrf(_attributes[i].type, 1, 0, type);
+        reg_out[_attributes[i].key] = type;
+    }
+
+    serializeJson(JsonDoc, _input_buff);
+    JsonDoc.clear();
+
+    return sendData(_input_buff);
 }

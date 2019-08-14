@@ -28,11 +28,15 @@ const char SET_QCFG_IOTOPMODE[] PROGMEM = "AT+QCFG=\"iotopmode\",1,1\r\n";
 
 const char GET_QCSQ[] PROGMEM = "AT+QCSQ\r\n";
 const char GET_QNWINFO[] PROGMEM = "AT+QNWINFO\r\n";
-const char SET_CEREG[] PROGMEM = "AT+CEREG=1\r\n";
+const char SET_CGREG[] PROGMEM = "AT+CGREG=2\r\n";
+const char SET_CEREG[] PROGMEM = "AT+CEREG=2\r\n";
+const char GET_CGREG[] PROGMEM = "AT+CGREG?\r\n";
 const char GET_CEREG[] PROGMEM = "AT+CEREG?\r\n";
 const char SET_CGATT[] PROGMEM = "AT+CGATT=1\r\n";
 const char GET_CGATT[] PROGMEM = "AT+CGATT?\r\n";
 const char RESP_CGATT[] PROGMEM = "+CGATT: 1";
+const char GET_COPS_ALL[] PROGMEM = "AT+COPS=?\r\n";
+const char GET_COPS[] PROGMEM = "AT+COPS?\r\n";
 const char SET_COPS[] PROGMEM = "AT+COPS=1,2,\"%s\"\r\n";
 
 const char SET_QICSGP[] PROGMEM = "AT+QICSGP=1,1,\"%s\",\"\",\"\",0\r\n";
@@ -46,5 +50,4 @@ const char SET_QIOPEN[] PROGMEM = "AT+QIOPEN=1,1,\"TCP\",\"%s\",%s,0,1\r\n";
 const char RESP_QIOPEN[] PROGMEM = "OK\r\n\r\n+QIOPEN: 1,0\r\n";
 const char SET_QISEND[] PROGMEM = "AT+QISEND=1\r\n";
 const char RESP_QISEND[] PROGMEM = ">";
-const char RESP_QISEND_DATA[] PROGMEM = "SEND OK\r\n\r\n+QIURC: \"recv\",1,4\r\nOK";
-const char RESP_QISEND_ID[] PROGMEM = "SEND OK\r\n\r\n+QIURC: \"recv\",1,";
+const char RESP_QISEND_DATA[] PROGMEM = "SEND OK\r\n\r\n+QIURC: \"recv\",1,";

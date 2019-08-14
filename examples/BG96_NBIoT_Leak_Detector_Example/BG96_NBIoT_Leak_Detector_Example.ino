@@ -51,7 +51,7 @@ void setup()
     BG96_NBIoT->modemInit();
     BG96_NBIoT->setAPN("nbiot.vodacom.za");
     BG96_NBIoT->setOperator("65501");
-    BG96_NBIoT->setExtConfig(GSM_ANY);
+    BG96_NBIoT->setExtConfig(LTE_B8);
     delay(3000);
 
     strcpy(BG96_NBIoT->imei, BG96_NBIoT->getIMEI());
@@ -100,8 +100,14 @@ void sendLeakState(uint8_t state)
         {
             if (BG96_NBIoT->openConnection("thingcola.hellothing.com", "30001"))
             {
-                BG96_NBIoT->initDataPacket();
-                sprintf(input, "%s%d%s", "{\"leak\":\"", state, "\"}");
+                BG96_NBIoT->JsonDoc["id"] = BG96_NBIoT->imei;
+                serializeJson(BG96_NBIoT->JsonDoc, input);
+                BG96_NBIoT->JsonDoc.clear();
+                BG96_NBIoT->sendData(input);
+
+                BG96_NBIoT->JsonDoc["leak"] = state;
+                serializeJson(BG96_NBIoT->JsonDoc, input);
+                BG96_NBIoT->JsonDoc.clear();
                 BG96_NBIoT->sendData(input);
                 break;
             }

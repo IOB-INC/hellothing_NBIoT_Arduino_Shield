@@ -16,9 +16,9 @@
 #define DEBUG
 
 #ifdef DEBUG
-#define DEBUG_PRINT(x) Serial.println(x)
+#define DEBUG_SERIAL(x) Serial.println(x)
 #else
-#define DEBUG_PRINT(x)
+#define DEBUG_SERIAL(x)
 #endif
 
 #if ARDUINO < 100
@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <SoftwareSerial.h>
+#include <ArduinoJson.h>
 #include "BG96_at_definitions.h"
 // the #include statment and code go here...
 
@@ -82,6 +83,21 @@ typedef enum
   NB_IOT = 1
 } Access_technology_t;
 
+typedef enum
+{
+  DIGITAL = 0,
+  DIGITAL_INVERT = 1,
+  ANALOG = 2,
+} Attribute_type_t;
+
+struct attr
+{
+  const char *key;
+  int value;
+  Attribute_type_t type;
+  int8_t pin;
+};
+
 class NBIoT
 {
 public:
@@ -89,7 +105,11 @@ public:
   char imsi[16];
   char iccid[23];
 
+  StaticJsonDocument<150> JsonDoc;
+
   NBIoT(Access_technology_t tech);
+
+  NBIoT(Access_technology_t tech, attr *attributes, uint8_t attributes_size);
 
   /**************************************************************
    * Power management functions
@@ -140,18 +160,18 @@ public:
   bool modemInit();
 
   /*
-    Function to send the communication details to the platform
-
-    return : success status
-  */
-  bool sendCommDetails(void);
-
-  /*
     Function to get the modem IMEI
 
     return : modem IMEI string
   */
   char *getIMEI();
+
+  /*
+    Function to send the device IDs to the platform
+
+    return : success status
+  */
+  bool sendDeviceID(void);
 
   /**************************************************************
    * Network functions
@@ -181,18 +201,18 @@ public:
   char *getServiceMode();
 
   /*
-    Function to set the network registration
+    Function to send the signal details to the platform
 
     return : success status
   */
-  bool setNetworkReg();
+  bool sendSignalDetails();
 
   /*
     Function to get the network registration status
 
     return : success status
   */
-  int getNetworkReg();
+  bool getNetworkReg();
 
   /*
     Function to set the network attatch
@@ -207,6 +227,20 @@ public:
     return : success status
   */
   bool getNetworkAttach();
+
+  /*
+    Function to get the available network operators
+
+    return : success status
+  */
+  bool getAvailableOperators();
+
+  /*
+    Function to get the current selected network operator
+
+    return : success status
+  */
+  bool getCurrentOperator();
 
   /*
     Function to set the operator selection
@@ -235,7 +269,7 @@ public:
 
     return : success status
     ---
-    param #1 : DNS server name
+    param #1 : DNS server IP address
   */
   bool setDNS(const char *dns);
 
@@ -287,7 +321,7 @@ public:
   bool sendData(char *data);
 
   /**************************************************************
-  * Sensor functions
+  * Sensor/attributes functions
   * ************************************************************/
 
   /*
@@ -297,6 +331,13 @@ public:
   */
   float getTemp();
 
+  /*
+    Function to register the outputs on the platform
+
+    return : success status
+  */
+  bool registerOutputs();
+
 private:
   SoftwareSerial *MDM_serial;
   bool _response;
@@ -304,6 +345,9 @@ private:
   char _buff[RESPONSE_BUFFER_SIZE + 1];
   char _return_buff[RETURN_BUFFER_SIZE + 1];
   char _input_buff[INPUT_BUFFER_SIZE + 1];
+  char *_json_key;
+  attr *_attributes;
+  uint8_t _attributes_size;
   char _at_cmd[100];
   char _at_resp[20];
   char *_pt;
@@ -312,7 +356,7 @@ private:
   float tempValue;
 
   bool sendATCmdResp();
-  void readModemResp();
+  bool readModemResp();
   void flushBuffer();
   void setAtCmd(const char *memstring);
   void setAtResp(const char *memstring);
