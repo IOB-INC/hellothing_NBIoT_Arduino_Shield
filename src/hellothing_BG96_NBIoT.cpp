@@ -304,8 +304,6 @@ bool NBIoT::setExtConfig(const char *band)
         sprintf(_input_buff, _at_cmd, band);
         strcpy(_at_cmd, _input_buff);
         _response = sendATCmdResp();
-        setAtCmd(SET_QCFG_BANDPRIOR);
-        _response = sendATCmdResp();
         setAtCmd(SET_QCFG_NWSCANMODE_NB);
         _response = sendATCmdResp();
         setAtCmd(SET_QCFG_IOTOPMODE);
