@@ -171,7 +171,7 @@ public:
 
     return : success status
   */
-  bool sendDeviceID(void);
+  bool sendDeviceID();
 
   /**************************************************************
    * Network functions
@@ -303,13 +303,6 @@ public:
     param #2 : port number
   */
   bool openConnection(const char *domain, const char *port);
-
-  /*
-    Function to sync device data packet to digital representation
-
-    return : success status
-  */
-  bool initDataPacket(void);
 
   /*
     Function to send a data string via TCP/IP
