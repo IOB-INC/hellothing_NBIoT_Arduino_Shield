@@ -318,11 +318,25 @@ public:
   * ************************************************************/
 
   /*
-    Function to get the temperature reading
+    Function to get the temperature reading in Celsius
 
-    return : temperature value
+    return : temperature value in Celsius 
   */
   float getTemp();
+
+  /*
+    Function to get the temperature reading in Celsius
+
+    return : temperature value in Celsius
+  */
+  float getTempC();
+
+  /*
+    Function to get the temperature reading
+
+    return : temperature value in Fahrenheit
+  */
+  float getTempF();
 
   /*
     Function to register the outputs on the platform

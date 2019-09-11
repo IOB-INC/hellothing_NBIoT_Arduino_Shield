@@ -13,7 +13,7 @@
 #define DEBUG_BAUD_RATE 19200
 #define SLEEP_PERIOD 60000
 
-bool sendTemperatue(void);
+bool sendTemperature(void);
 
 NBIoT *BG96_NBIoT = new NBIoT(NB_IOT); // EDGE or NB_IOT
 
@@ -68,7 +68,7 @@ void loop()
 
                 BG96_NBIoT->sendDeviceID();
                 BG96_NBIoT->sendSignalDetails();
-                sendTemperatue();
+                sendTemperature();
                 break;
             }
         }
@@ -77,7 +77,7 @@ void loop()
     delay(SLEEP_PERIOD);
 }
 
-bool sendTemperatue(void)
+bool sendTemperature(void)
 {
     char result[8];
     dtostrf(BG96_NBIoT->getTemp(), 6, 2, result);

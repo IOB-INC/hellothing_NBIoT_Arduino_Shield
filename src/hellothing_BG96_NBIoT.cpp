@@ -324,8 +324,10 @@ char *NBIoT::getSignalQuality(void)
     setAtResp(OK);
     if (sendATCmdResp())
     {
-        _pt = strtok(_buff, ",");
-        _pt = strtok(NULL, "\r\n");
+        // Example response
+        // AT+QCSQ\r\n+QCSQ: "CAT-M1",-52,-81,195,-10
+        _pt = strtok(_buff, ",");    // AT+QCSQ\r\n+QCSQ: "CAT-M1"
+        _pt = strtok(NULL, ",\r\n"); // -52
         return _pt;
     }
     else
@@ -342,8 +344,10 @@ char *NBIoT::getServiceMode(void)
     setAtResp(OK);
     if (sendATCmdResp())
     {
-        _pt = strtok(_buff, "\"");
-        _pt = strtok(NULL, "\"");
+        // Example response
+        // AT+QNWINFO\r\n+QNWINFO: "EDGE","46001","GSM 1800",653
+        _pt = strtok(_buff, "\""); // AT+QNWINFO\r\n+QNWINFO:
+        _pt = strtok(NULL, "\"");  // EDGE
         return _pt;
     }
     else
@@ -551,6 +555,16 @@ float NBIoT::getTemp(void)
     tempValue = analogRead(TEMP);
     tempValue = ((8.194 - sqrt(81.017156 - (0.02096 * tempValue))) / (-0.0052)) + 30.0;
     return tempValue;
+}
+
+float NBIoT::getTempC(void)
+{
+    return NBIoT::getTemp();
+}
+
+float NBIoT::getTempF(void)
+{
+    return (NBIoT::getTemp() * 9 / 5) + 32;
 }
 
 bool NBIoT::registerOutputs(void)
