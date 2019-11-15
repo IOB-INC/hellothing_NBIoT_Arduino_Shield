@@ -46,8 +46,18 @@ const char GET_QIACT[] PROGMEM = "AT+QIACT?\r\n";
 const char RESP_QIACT[] PROGMEM = "+QIACT: 1,1,1,";
 const char SET_QICLOSE[] PROGMEM = "AT+QICLOSE=1\r\n";
 const char SET_QIDNSCFG[] PROGMEM = "AT+QIDNSCFG=1,\"%s\"\r\n";
+const char GET_QIDNSCFG[] PROGMEM = "AT+QIDNSCFG=1\r\n";
 const char SET_QIOPEN[] PROGMEM = "AT+QIOPEN=1,1,\"TCP\",\"%s\",%s,0,1\r\n";
 const char RESP_QIOPEN[] PROGMEM = "OK\r\n\r\n+QIOPEN: 1,0\r\n";
 const char SET_QISEND[] PROGMEM = "AT+QISEND=1\r\n";
 const char RESP_QISEND[] PROGMEM = ">";
 const char RESP_QISEND_DATA[] PROGMEM = "SEND OK\r\n\r\n+QIURC: \"recv\",1,";
+
+const char SET_QGPSCFG_GNSSCONFIG[] PROGMEM = "AT+QGPSCFG=\"gnssconfig\",%d\r\n";
+const char SET_QGPSCFG_NMEASRC[] PROGMEM = "AT+QGPSCFG=\"nmeasrc\",%d\r\n";
+const char GET_QGPSGNMEA[] PROGMEM = "AT+QGPSGNMEA=";
+const char RESP_QGPSGNMEA[] PROGMEM = "+QGPSGNMEA: ";
+const char SET_QGPSEND[] PROGMEM = "AT+QGPSEND\r\n";
+const char SET_QGPS[] PROGMEM = "AT+QGPS=1\r\n";
+const char GET_QGPSLOC[] PROGMEM = "AT+QGPSLOC=2\r\n";
+const char RESP_QGPSLOC[] PROGMEM = "+QGPSLOC: ";

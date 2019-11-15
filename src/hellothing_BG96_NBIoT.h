@@ -79,9 +79,29 @@
 
 typedef enum
 {
-  EDGE = 0,
-  NB_IOT = 1
+  NB_IOT = 0,
+  EDGE = 1
 } Access_technology_t;
+
+typedef enum
+{
+  GPS_ONLY = 0,
+  GPS_GLONASS_BEIDOU_GALILEO = 1,
+  GPS_GLONASS_BEIDOU = 2,
+  GPS_GLONASS_GALILEO = 3,
+  GPS_GLONASS = 4,
+  GPS_BEIDOU_GALILEO = 5,
+  GPS_GALILEO = 6,
+} GNSS_Constellation_t;
+
+typedef enum
+{
+  GPGGA = 1,
+  GPRMC = 2,
+  GPGSV = 4,
+  GPGSA = 8,
+  GPVTG = 16,
+} NMEA_Type_t;
 
 typedef enum
 {
@@ -274,6 +294,13 @@ public:
   bool setDNS(const char *dns);
 
   /*
+    Function to get the DNS server
+
+    return : success status
+  */
+  bool getDNS();
+
+  /*
     Function to deactivate the TCP/IP context
 
     return : success status
@@ -312,6 +339,58 @@ public:
     param #1 : data string
   */
   bool sendData(char *data);
+
+  /**************************************************************
+  * GNSS functions
+  * ************************************************************/
+
+  /*
+    Function to configure the supported GNSS constellation
+
+    return : success status
+    ---
+    param #1 : supported constellation
+  */
+  bool setGNSSConstellation(GNSS_Constellation_t constellation);
+
+  /*
+    Function to enable the acquisition of NMEA sentences
+
+    return : success status
+    ---
+    param #1 : enable value
+  */
+  bool setGNSSNMEASentencesEnable(bool enable);
+
+  /*
+    Function to acquire NMEA sentence
+
+    return : NMEA sentence string
+    ---
+    param #1 : NMEA sentence type
+  */
+  char *getGNSSNMEASentences(NMEA_Type_t type);
+
+  /*
+    Function to turn off GNSS
+
+    return : success status
+  */
+  bool turnOffGNSS();
+
+  /*
+    Function to turn on GNSS
+
+    return : success status
+  */
+  bool turnOnGNSS();
+
+  /*
+    Function to acquire positioning information
+
+    return : positioning information string
+  */
+  char *getGNSSPositionInformation();
 
   /**************************************************************
   * Sensor/attributes functions
@@ -356,10 +435,12 @@ private:
   attr *_attributes;
   uint8_t _attributes_size;
   char _at_cmd[100];
-  char _at_resp[20];
+  char _at_resp[30];
   char *_pt;
   char _error[6];
   Access_technology_t _access_tech;
+  NMEA_Type_t _nmea_sentences_type;
+  GNSS_Constellation_t _gnss_constellation;
   float tempValue;
 
   bool sendATCmdResp();

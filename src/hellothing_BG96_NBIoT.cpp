@@ -459,6 +459,15 @@ bool NBIoT::setDNS(const char *dns)
     return sendATCmdResp();
 }
 
+bool NBIoT::getDNS(void)
+{
+    DEBUG_SERIAL(F("DNS Server"));
+    _timeout = 10000;
+    setAtCmd(GET_QIDNSCFG);
+    setAtResp(OK);
+    return sendATCmdResp();
+}
+
 bool NBIoT::deactContext(void)
 {
     DEBUG_SERIAL(F("Deactivating PDP context"));
@@ -505,10 +514,11 @@ bool NBIoT::openConnection(const char *domain, const char *port)
     {
         actContext();
     }
-
-    _timeout = DEFAULT_TIMEOUT;
-    setDNS("8.8.8.8");
-    delay(1000);
+    else
+    {
+        setDNS("8.8.8.8");
+        delay(1000);
+    }
 
     DEBUG_SERIAL(F("Open TCP"));
     _timeout = 150000;
@@ -517,7 +527,7 @@ bool NBIoT::openConnection(const char *domain, const char *port)
     sprintf(_input_buff, _at_cmd, domain, port);
     strcpy(_at_cmd, _input_buff);
 
-    for (i = 0; i < 3; i++)
+    for (i = 0; i < 2; i++)
     {
         if (sendATCmdResp())
         {
@@ -530,6 +540,7 @@ bool NBIoT::openConnection(const char *domain, const char *port)
 bool NBIoT::sendData(char *data)
 {
     DEBUG_SERIAL(F("Send data"));
+    DEBUG_SERIAL(data);
     _timeout = 5000;
     setAtCmd(SET_QISEND);
     setAtResp(RESP_QISEND);
@@ -544,6 +555,108 @@ bool NBIoT::sendData(char *data)
     }
 
     return false;
+}
+
+/**************************************************************
+  * GNSS functions
+  * ************************************************************/
+
+bool NBIoT::setGNSSConstellation(GNSS_Constellation_t constellation)
+{
+    DEBUG_SERIAL(F("Set GNSS constellation"));
+    _timeout = DEFAULT_TIMEOUT;
+    setAtCmd(SET_QGPSCFG_GNSSCONFIG);
+    setAtResp(OK);
+    sprintf(_input_buff, _at_cmd, constellation);
+    strcpy(_at_cmd, _input_buff);
+    return sendATCmdResp();
+}
+
+bool NBIoT::setGNSSNMEASentencesEnable(bool enable)
+{
+    DEBUG_SERIAL(F("Set GNSS NMEA Sentences Enable"));
+    _timeout = DEFAULT_TIMEOUT;
+    setAtCmd(SET_QGPSCFG_NMEASRC);
+    setAtResp(OK);
+    sprintf(_input_buff, _at_cmd, enable);
+    strcpy(_at_cmd, _input_buff);
+    return sendATCmdResp();
+}
+
+char *NBIoT::getGNSSNMEASentences(NMEA_Type_t type)
+{
+    DEBUG_SERIAL(F("Get GNSS NMEA Sentences"));
+    _timeout = DEFAULT_TIMEOUT;
+    setAtCmd(GET_QGPSGNMEA);
+    setAtResp(RESP_QGPSGNMEA);
+
+    switch (type)
+    {
+    case GPGGA:
+        strcat(_at_cmd, "\"GGA\"\r\n");
+        break;
+    case GPRMC:
+        strcat(_at_cmd, "\"RMC\"\r\n");
+        break;
+    case GPGSV:
+        strcat(_at_cmd, "\"GSV\"\r\n");
+        break;
+    case GPGSA:
+        strcat(_at_cmd, "\"GSA\"\r\n");
+        break;
+    case GPVTG:
+        strcat(_at_cmd, "\"VTG\"\r\n");
+        break;
+    default:
+        return _error;
+    }
+
+    if (sendATCmdResp())
+    {
+        _pt = strtok(_buff, " ");
+        _pt = strtok(NULL, "\r\n");
+        return _pt;
+    }
+    else
+    {
+        return _buff;
+    }
+}
+
+bool NBIoT::turnOffGNSS()
+{
+    DEBUG_SERIAL(F("Turn off GNSS"));
+    _timeout = DEFAULT_TIMEOUT;
+    setAtCmd(SET_QGPSEND);
+    setAtResp(OK);
+    return sendATCmdResp();
+}
+
+bool NBIoT::turnOnGNSS()
+{
+    DEBUG_SERIAL(F("Turn on GNSS"));
+    _timeout = DEFAULT_TIMEOUT;
+    setAtCmd(SET_QGPS);
+    setAtResp(OK);
+    return sendATCmdResp();
+}
+
+char *NBIoT::getGNSSPositionInformation()
+{
+    DEBUG_SERIAL(F("Getting GPS position information"));
+    _timeout = DEFAULT_TIMEOUT;
+    setAtCmd(GET_QGPSLOC);
+    setAtResp(RESP_QGPSLOC);
+    if (sendATCmdResp())
+    {
+        _pt = strtok(_buff, " ");
+        _pt = strtok(NULL, "\r\n");
+        return _pt;
+    }
+    else
+    {
+        return _buff;
+    }
 }
 
 /**************************************************************
@@ -571,18 +684,30 @@ bool NBIoT::registerOutputs(void)
 {
     DEBUG_SERIAL(F("Register outputs"));
 
-    char type[2];
-
     JsonObject reg_out = JsonDoc.createNestedObject("reg_out");
 
     for (int i = 0; i < _attributes_size; i++)
     {
-        dtostrf(_attributes[i].type, 1, 0, type);
-        reg_out[_attributes[i].key] = type;
+        reg_out[_attributes[i].key] = int(_attributes[i].type);
     }
 
     serializeJson(JsonDoc, _input_buff);
     JsonDoc.clear();
 
-    return sendData(_input_buff);
+    if (sendData(_input_buff))
+    {
+
+        JsonObject outputs = JsonDoc.createNestedObject("outputs");
+        for (int j = 0; j < _attributes_size; j++)
+        {
+            outputs[_attributes[j].key] = _attributes[j].value;
+        }
+
+        serializeJson(JsonDoc, _input_buff);
+        JsonDoc.clear();
+
+        return sendData(_input_buff);
+    }
+
+    return false;
 }

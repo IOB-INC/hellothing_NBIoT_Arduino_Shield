@@ -57,10 +57,12 @@ void loop()
     BG96_NBIoT->getServiceMode();
     if (BG96_NBIoT->getNetworkAttach())
     {
+        digitalWrite(LED0, LOW);
         for (i = 0; i < 3; i++)
         {
             if (BG96_NBIoT->openConnection("thingcola.hellothing.com", "30001"))
             {
+                digitalWrite(LED1, LOW);
                 BG96_NBIoT->JsonDoc["id"] = BG96_NBIoT->imei;
                 serializeJson(BG96_NBIoT->JsonDoc, input);
                 BG96_NBIoT->JsonDoc.clear();
@@ -69,9 +71,11 @@ void loop()
                 BG96_NBIoT->sendDeviceID();
                 BG96_NBIoT->sendSignalDetails();
                 sendTemperature();
+                digitalWrite(LED1, HIGH);
                 break;
             }
         }
+        digitalWrite(LED0, HIGH);
         BG96_NBIoT->closeConnection();
     }
     delay(SLEEP_PERIOD);
@@ -79,10 +83,7 @@ void loop()
 
 bool sendTemperature(void)
 {
-    char result[8];
-    dtostrf(BG96_NBIoT->getTemp(), 6, 2, result);
-
-    BG96_NBIoT->JsonDoc["temp"] = result;
+    BG96_NBIoT->JsonDoc["temp"] = round(BG96_NBIoT->getTemp() * 100) / 100;
     serializeJson(BG96_NBIoT->JsonDoc, input);
     BG96_NBIoT->JsonDoc.clear();
 
